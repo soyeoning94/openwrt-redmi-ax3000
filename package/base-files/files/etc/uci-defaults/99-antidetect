@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# Anti-detection setup for campus network
+# Runs on first boot after firmware flash
+
+# 1. Set hostname to a common PC name
+uci -q set system.@system[0].hostname='DESKTOP-PC'
+uci -q set network.wan.hostname='DESKTOP-PC'
+uci -q commit system
+uci -q commit network
+
+# 2. Enable and configure UA2F
+uci -q set ua2f.enabled.enabled='1'
+uci -q set ua2f.firewall.handle_fw='1'
+uci -q set ua2f.firewall.handle_intranet='1'
+uci -q set ua2f.firewall.handle_tls='0'
+uci -q set ua2f.firewall.handle_mmtls='0'
+uci -q commit ua2f
+/etc/init.d/ua2f enable
+/etc/init.d/ua2f start
+
+# 3. Add TTL spoofing rule (all packets TTL=64, looks like single Linux device)
+cat > /etc/firewall.user <<'FWEOF'
+# === TTL Spoofing: set all outgoing packets TTL to 64 ===
+iptables -t mangle -A POSTROUTING -o eth1 -j TTL --ttl-set 64
+
+# === Flash detection prevention ===
+iptables -I FORWARD -p tcp --sport 80 --tcp-flags ACK ACK -m string --algo bm --string " src=\" -j DROP
+
+# === NTP clock skew detection prevention ===
+iptables -t nat -N ntp_force_local 2>/dev/null
+iptables -t nat -I PREROUTING -p udp --dport 123 -j ntp_force_local
+iptables -t nat -A ntp_force_local -d 0.0.0.0/8 -j RETURN
+iptables -t nat -A ntp_force_local -d 127.0.0.0/8 -j RETURN
+iptables -t nat -A ntp_force_local -d 192.168.0.0/16 -j RETURN
+iptables -t nat -A ntp_force_local -s 192.168.0.0/16 -j DNAT --to-destination 192.168.1.1
+FWEOF
+
+# 4. Restart firewall to apply rules
+/etc/init.d/firewall restart 2>/dev/null
+
+exit 0

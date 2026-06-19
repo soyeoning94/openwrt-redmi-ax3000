@@ -36,6 +36,9 @@ jobs:
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # Explicitly install UA2F from immortalwrt feed
+          ./scripts/feeds install -p immortalwrt ua2f
+          ./scripts/feeds install -p immortalwrt luci-app-ua2f
 
       - name: Configure
         run: |
@@ -61,6 +64,32 @@ jobs:
             CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y
 
             CONFIG_PACKAGE_luci=y
+
+            # === Anti-detection: TTL spoofing ===
+            CONFIG_PACKAGE_iptables-mod-ipopt=y
+            CONFIG_PACKAGE_kmod-ipt-ipopt=y
+
+            # === Anti-detection: UA2F (User-Agent spoofing) ===
+            CONFIG_PACKAGE_ua2f=y
+            CONFIG_PACKAGE_iptables-mod-nfqueue=y
+            CONFIG_PACKAGE_kmod-ipt-nfqueue=y
+            CONFIG_PACKAGE_kmod-nfnetlink-queue=y
+            CONFIG_PACKAGE_libnetfilter-queue=y
+
+            # === Anti-detection: conntrack extra (for UA2F ctmark) ===
+            CONFIG_PACKAGE_iptables-mod-conntrack-extra=y
+            CONFIG_PACKAGE_kmod-ipt-conntrack-extra=y
+
+            # === Anti-detection: string match (Flash detect) ===
+            CONFIG_PACKAGE_kmod-ipt-filter=y
+            CONFIG_PACKAGE_iptables-mod-filter=y
+
+            # === Anti-detection: u32 match ===
+            CONFIG_PACKAGE_kmod-ipt-u32=y
+            CONFIG_PACKAGE_iptables-mod-u32=y
+
+            # === LuCI app for UA2F ===
+            CONFIG_PACKAGE_luci-app-ua2f=y
           EOF
           make defconfig
 
